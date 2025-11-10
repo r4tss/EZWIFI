@@ -5,6 +5,8 @@
 #include "esp_log.h"
 #include "esp_mesh.h"
 #include "nvs_flash.h"
+#include <pthread.h>
+#include <stdio.h>
 
 #define SSID "CDIO"
 #define PASS "CDIO_PASS"
@@ -31,9 +33,9 @@ static esp_netif_t *netif_sta = NULL;
 
 static EventGroupHandle_t s_wifi_event_group;
 
-// void _print_csi_csv_header();
+bool is_wifi_connected();
 
-// void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data);
+void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data);
 
 void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 

@@ -1,38 +1,48 @@
 #include "EZWIFI.h"
 
-/* void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) { */
-/*     xSemaphoreTake(mutex, portMAX_DELAY); */
-/*     std::stringstream ss; */
+pthread_mutex_t csi_mutex;
 
-/*     wifi_csi_info_t d = data[0]; */
-/*     char mac[20] = {0}; */
-/*     sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X", d.mac[0], d.mac[1], d.mac[2], d.mac[3], d.mac[4], d.mac[5]); */
+bool is_wifi_connected() {
+    return (xEventGroupGetBits(s_wifi_event_group) & BIT0);
+}
 
-/*     int data_len = data->len; */
+void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
+    //pthread_mutex_lock(&csi_mutex);
 
-/*     int8_t *my_ptr; */
+    wifi_csi_info_t d = data[0];
+    char mac[20] = {0};
+    sprintf(mac,"%02X:%02X:%02X:%02X:%02X:%02X", d.mac[0], d.mac[1], d.mac[2], d.mac[3], d.mac[4], d.mac[5]);
 
-/*     my_ptr = data->buf; */
-/*     for (int i = 0; i < data_len; i++) { */
-/*         //ss << (int) my_ptr[i] << " "; */
-/*     } */
+    int data_len = data->len;
 
-/*     my_ptr = data->buf; */
-/*     for (int i = 0; i < data_len / 2; i++) { */
-/*         //ss << (int) sqrt(pow(my_ptr[i * 2], 2) + pow(my_ptr[(i * 2) + 1], 2)) << " "; */
-/*     } */
+    int8_t *my_ptr;
+
+    if(strcmp(mac, "F0:24:F9:54:3B:88") == 0) {
+	my_ptr = data->buf;
+	printf("CSI DATA: [");
+	for (int i = 0; i < data_len / 2; i++) {
+	    printf("(%d, %d)", my_ptr[i * 2], my_ptr[(i * 2) + 1]);
+	    if(i < (data_len / 2) - 1) {
+		printf(", ");
+	    }
+	    // ESP_LOGI("CSI Data:", "%d:%d + i(%d)", i/2, my_ptr[i], my_ptr[i + 1]);
+	}
+	printf("]\n");
+    }
+    /* my_ptr = data->buf; */
+    /* for (int i = 0; i < data_len / 2; i++) { */
+    /*     //ss << (int) sqrt(pow(my_ptr[i * 2], 2) + pow(my_ptr[(i * 2) + 1], 2)) << " "; */
+    /* } */
     
-/*     my_ptr = data->buf; */
-/*     for (int i = 0; i < data_len / 2; i++) { */
-/*         //ss << (int) atan2(my_ptr[i*2], my_ptr[(i*2)+1]) << " "; */
-/*     } */
-/*     ss << "]\n"; */
+    /* my_ptr = data->buf; */
+    /* for (int i = 0; i < data_len / 2; i++) { */
+    /*     //ss << (int) atan2(my_ptr[i*2], my_ptr[(i*2)+1]) << " "; */
+    /* } */
 
-/*     printf(ss.str().c_str()); */
-/*     fflush(stdout); */
-/*     vTaskDelay(0); */
-/*     xSemaphoreGive(mutex); */
-/* } */
+    //printf(ss.str().c_str());
+    //fflush(stdout);
+    //pthread_mutex_unlock(&csi_mutex);
+}
 
 void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
@@ -102,6 +112,8 @@ void setup_station(void)
 
 void setup_softap(void)
 {
+    pthread_mutex_init(&csi_mutex, NULL);
+    
     s_wifi_event_group = xEventGroupCreate();
     
     ESP_ERROR_CHECK(nvs_flash_init());
@@ -137,6 +149,8 @@ void setup_softap(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
+
+    //    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW40));
 
     ESP_LOGI(TAG, "softap setup finished. SSID:%s password:%s", SSID, PASS);
 }
@@ -216,7 +230,7 @@ void setup_csi(void) {
     configuration_csi.manu_scale = 0;
 
     ESP_ERROR_CHECK(esp_wifi_set_csi_config(&configuration_csi));
-    //ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&_wifi_csi_cb, NULL));
+    ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&_wifi_csi_cb, NULL));
 
     //_print_csi_csv_header();
 
