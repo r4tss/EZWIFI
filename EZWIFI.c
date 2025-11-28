@@ -18,16 +18,16 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
     int8_t *my_ptr;
 
     if(strcmp(mac, "F0:24:F9:54:3B:88") == 0) {
-	my_ptr = data->buf;
-	printf("CSI DATA: [");
-	for (int i = 0; i < data_len / 2; i++) {
-	    printf("(%d, %d)", my_ptr[i * 2], my_ptr[(i * 2) + 1]);
-	    if(i < (data_len / 2) - 1) {
-		printf(", ");
-	    }
-	    // ESP_LOGI("CSI Data:", "%d:%d + i(%d)", i/2, my_ptr[i], my_ptr[i + 1]);
-	}
-	printf("]\n");
+		my_ptr = data->buf;
+		printf("CSI DATA: [");
+		for (int i = 0; i < data_len / 2; i++) {
+			printf("(%d, %d)", my_ptr[i * 2], my_ptr[(i * 2) + 1]);
+			if(i < (data_len / 2) - 1) {
+				printf(", ");
+			}
+			// ESP_LOGI("CSI Data:", "%d:%d + i(%d)", i/2, my_ptr[i], my_ptr[i + 1]);
+		}
+		printf("]\n");
     }
     /* my_ptr = data->buf; */
     /* for (int i = 0; i < data_len / 2; i++) { */
@@ -47,25 +47,25 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
 void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
     if(event_id == WIFI_EVENT_AP_STACONNECTED) {
-	wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
-	ESP_LOGI(TAG, "station " MACSTR " join, AID=%d", MAC2STR(event->mac), event->aid);
+		wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+		ESP_LOGI(TAG, "station " MACSTR " join, AID=%d", MAC2STR(event->mac), event->aid);
     }
     else if(event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-	wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
-	ESP_LOGI(TAG, "station " MACSTR " leave, AID=%d", MAC2STR(event->mac), event->aid);
+		wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+		ESP_LOGI(TAG, "station " MACSTR " leave, AID=%d", MAC2STR(event->mac), event->aid);
     }
     else if(event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-	esp_wifi_connect();
+		esp_wifi_connect();
     }
     else if(event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-	ESP_LOGI(TAG, "Disconnected, retrying connection...");
-	esp_wifi_connect();
-	xEventGroupClearBits(s_wifi_event_group, BIT0);
+		ESP_LOGI(TAG, "Disconnected, retrying connection...");
+		esp_wifi_connect();
+		xEventGroupClearBits(s_wifi_event_group, BIT0);
     }
     else if(event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-	ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-	ESP_LOGI(TAG, "Got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-	xEventGroupSetBits(s_wifi_event_group, BIT0);
+		ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+		ESP_LOGI(TAG, "Got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+		xEventGroupSetBits(s_wifi_event_group, BIT0);
     }
 }
 
@@ -82,20 +82,20 @@ void setup_station(void)
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-							ESP_EVENT_ANY_ID,
-							&wifi_event_handler,
-							NULL,
-							NULL));
+														ESP_EVENT_ANY_ID,
+														&wifi_event_handler,
+														NULL,
+														NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-							IP_EVENT_STA_GOT_IP,
-							&wifi_event_handler,
-							NULL,
-							NULL));
+														IP_EVENT_STA_GOT_IP,
+														&wifi_event_handler,
+														NULL,
+														NULL));
 
     wifi_sta_config_t wifi_sta_config = {};
     wifi_sta_config.channel = WIFI_CHANNEL;
     wifi_config_t wifi_config = {
-	.sta = wifi_sta_config,
+		.sta = wifi_sta_config,
     };
 
     strlcpy((char *) wifi_config.sta.ssid, SSID, sizeof(SSID));
@@ -125,10 +125,10 @@ void setup_softap(void)
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-							ESP_EVENT_ANY_ID,
-							&wifi_event_handler,
-							NULL,
-							NULL));
+														ESP_EVENT_ANY_ID,
+														&wifi_event_handler,
+														NULL,
+														NULL));
 
     wifi_ap_config_t wifi_ap_config = {};
     wifi_ap_config.channel = WIFI_CHANNEL;
@@ -136,14 +136,14 @@ void setup_softap(void)
     wifi_ap_config.max_connection = MAX_STA_CONN;
 
     wifi_config_t wifi_config = {
-	.ap = wifi_ap_config,
+		.ap = wifi_ap_config,
     };
 
     strlcpy((char *) wifi_config.ap.ssid, SSID, sizeof(SSID));
     strlcpy((char *) wifi_config.ap.password, PASS, sizeof(PASS));
 
     if(strlen(PASS) == 0) {
-	wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+		wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     }
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
