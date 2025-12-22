@@ -5,6 +5,8 @@
 #include "esp_log.h"
 #include "esp_mesh.h"
 #include "nvs_flash.h"
+#include "esp_netif.h"
+#include "rom/ets_sys.h"
 #include <pthread.h>
 #include <stdio.h>
 
@@ -12,7 +14,7 @@
 #define PASS "CDIO_PASS"
 
 #define WIFI_AP_AUTHMODE WIFI_AUTH_WPA2_PSK
-#define WIFI_CHANNEL 0
+#define WIFI_CHANNEL 11
 
 #define MESH_AP_AUTHMODE WIFI_AUTH_WPA2_PSK
 #define MESH_AP_CONNECTIONS 5
@@ -25,7 +27,6 @@
 
 #define MAX_STA_CONN 10
 
-static const char *TAG = "wifi_main";
 static const uint8_t MESH_ID[6] = { 0x77, 0x77, 0x77, 0x77, 0x77, 0x77};
 static mesh_addr_t mesh_parent_addr;
 static int mesh_layer = -1;
@@ -33,7 +34,9 @@ static esp_netif_t *netif_sta = NULL;
 
 static EventGroupHandle_t s_wifi_event_group;
 
-bool is_wifi_connected();
+int is_wifi_connected();
+
+wifi_csi_info_t *get_csi();
 
 void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data);
 
@@ -51,4 +54,4 @@ void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, 
 
 void ezmesh_init(void);
 
-void setup_csi(void);
+void setup_csi(char *csi_mac_addr);

@@ -1,47 +1,112 @@
 #include "EZWIFI.h"
 
-pthread_mutex_t csi_mutex;
+static pthread_mutex_t csi_mutex;
 
-bool is_wifi_connected() {
-    return (xEventGroupGetBits(s_wifi_event_group) & BIT0);
+static const char *TAG = "EZWIFI";
+
+static char *CSI_MAC;
+
+static wifi_csi_info_t csi_info;
+
+static int WIFI_CONNECTED = 0;
+
+/* void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) { */
+/*     //pthread_mutex_lock(&csi_mutex); */
+
+/*     wifi_csi_info_t d = data[0]; */
+/*     char mac[20] = {0}; */
+/*     sprintf(mac,"%02X:%02X:%02X:%02X:%02X:%02X", d.mac[0], d.mac[1], d.mac[2], d.mac[3], d.mac[4], d.mac[5]); */
+
+/*     int data_len = data->len; */
+
+/*     int8_t *my_ptr; */
+
+/*     if(strcmp(mac, "F0:24:F9:54:3B:88") == 0) { */
+/* 		my_ptr = data->buf; */
+/* 		printf("CSI DATA: ["); */
+/* 		for (int i = 0; i < data_len / 2; i++) { */
+/* 			printf("(%d, %d)", my_ptr[i * 2], my_ptr[(i * 2) + 1]); */
+/* 			if(i < (data_len / 2) - 1) { */
+/* 				printf(", "); */
+/* 			} */
+/* 			// ESP_LOGI("CSI Data:", "%d:%d + i(%d)", i/2, my_ptr[i], my_ptr[i + 1]); */
+/* 		} */
+/* 		printf("]\n"); */
+/*     } */
+/*     /\* my_ptr = data->buf; *\/ */
+/*     /\* for (int i = 0; i < data_len / 2; i++) { *\/ */
+/*     /\*     //ss << (int) sqrt(pow(my_ptr[i * 2], 2) + pow(my_ptr[(i * 2) + 1], 2)) << " "; *\/ */
+/*     /\* } *\/ */
+    
+/*     /\* my_ptr = data->buf; *\/ */
+/*     /\* for (int i = 0; i < data_len / 2; i++) { *\/ */
+/*     /\*     //ss << (int) atan2(my_ptr[i*2], my_ptr[(i*2)+1]) << " "; *\/ */
+/*     /\* } *\/ */
+
+/*     //printf(ss.str().c_str()); */
+/*     //fflush(stdout); */
+/*     //pthread_mutex_unlock(&csi_mutex); */
+/* } */
+
+int is_wifi_connected()
+{
+	return WIFI_CONNECTED;
 }
 
-void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
-    //pthread_mutex_lock(&csi_mutex);
+wifi_csi_info_t *get_csi()
+{
+	return &csi_info;
+}
 
-    wifi_csi_info_t d = data[0];
+static void wifi_csi_rx_cb(void *ctx, wifi_csi_info_t *info)
+{
+    // ESP_LOGI(TAG, "<%s>", __func__);
+    if (!info || !info->buf) {
+        ESP_LOGW(TAG, "<%s> wifi_csi_cb", esp_err_to_name(ESP_ERR_INVALID_ARG));
+        return;
+    }
+
+	wifi_csi_info_t d = info[0];
     char mac[20] = {0};
     sprintf(mac,"%02X:%02X:%02X:%02X:%02X:%02X", d.mac[0], d.mac[1], d.mac[2], d.mac[3], d.mac[4], d.mac[5]);
 
-    int data_len = data->len;
+    /* if (memcmp(info->mac, CONFIG_CSI_SEND_MAC, 6)) { */
+    /*     return; */
+    /* } */
 
-    int8_t *my_ptr;
+    // wifi_pkt_rx_ctrl_t *phy_info = (wifi_pkt_rx_ctrl_t *)info;
+	// ESP_LOGI(TAG, "CSI from: %s", mac);
+	if(strcmp(mac, CSI_MAC) == 0)
+	{
+		pthread_mutex_lock(&csi_mutex);
+		
+		csi_info = *info;
 
-    if(strcmp(mac, "F0:24:F9:54:3B:88") == 0) {
-		my_ptr = data->buf;
-		printf("CSI DATA: [");
-		for (int i = 0; i < data_len / 2; i++) {
-			printf("(%d, %d)", my_ptr[i * 2], my_ptr[(i * 2) + 1]);
-			if(i < (data_len / 2) - 1) {
-				printf(", ");
-			}
-			// ESP_LOGI("CSI Data:", "%d:%d + i(%d)", i/2, my_ptr[i], my_ptr[i + 1]);
+		pthread_mutex_unlock(&csi_mutex);
+		
+		static int s_count = 0;
+		uint32_t rx_id = *(uint32_t *)(info->payload + 15);
+		const wifi_pkt_rx_ctrl_t *rx_ctrl = &info->rx_ctrl;
+		if (!s_count) {
+			ESP_LOGI(TAG, "================ CSI RECV ================");
+			ets_printf("type,id,mac,rssi,rate,sig_mode,mcs,bandwidth,smoothing,not_sounding,aggregation,stbc,fec_coding,sgi,noise_floor,ampdu_cnt,channel,secondary_channel,local_timestamp,ant,sig_len,rx_state,len,first_word,data\n");
 		}
-		printf("]\n");
-    }
-    /* my_ptr = data->buf; */
-    /* for (int i = 0; i < data_len / 2; i++) { */
-    /*     //ss << (int) sqrt(pow(my_ptr[i * 2], 2) + pow(my_ptr[(i * 2) + 1], 2)) << " "; */
-    /* } */
-    
-    /* my_ptr = data->buf; */
-    /* for (int i = 0; i < data_len / 2; i++) { */
-    /*     //ss << (int) atan2(my_ptr[i*2], my_ptr[(i*2)+1]) << " "; */
-    /* } */
 
-    //printf(ss.str().c_str());
-    //fflush(stdout);
-    //pthread_mutex_unlock(&csi_mutex);
+		ets_printf("CSI_DATA,%d," MACSTR ",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+				   rx_id, MAC2STR(info->mac), rx_ctrl->rssi, rx_ctrl->rate, rx_ctrl->sig_mode,
+				   rx_ctrl->mcs, rx_ctrl->cwb, rx_ctrl->smoothing, rx_ctrl->not_sounding,
+				   rx_ctrl->aggregation, rx_ctrl->stbc, rx_ctrl->fec_coding, rx_ctrl->sgi,
+				   rx_ctrl->noise_floor, rx_ctrl->ampdu_cnt, rx_ctrl->channel, rx_ctrl->secondary_channel,
+				   rx_ctrl->timestamp, rx_ctrl->ant, rx_ctrl->sig_len, rx_ctrl->rx_state);
+
+		ets_printf(",%d,%d,\"[%d", info->len, info->first_word_invalid, info->buf[0]);
+		for (int i = 1; i < info->len; i++) {
+			ets_printf(" %d", info->buf[i]);
+		}
+	
+		ets_printf("]\"\n");
+		s_count++;
+	}
 }
 
 void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
@@ -58,14 +123,16 @@ void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id
 		esp_wifi_connect();
     }
     else if(event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+		wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*) event_data;
+		WIFI_CONNECTED = 0;
 		ESP_LOGI(TAG, "Disconnected, retrying connection...");
 		esp_wifi_connect();
-		xEventGroupClearBits(s_wifi_event_group, BIT0);
+
     }
     else if(event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+		WIFI_CONNECTED = 1;
 		ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-		ESP_LOGI(TAG, "Got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-		xEventGroupSetBits(s_wifi_event_group, BIT0);
+		ESP_LOGI(TAG, "Got ip: " IPSTR, IP2STR(&event->ip_info.ip));
     }
 }
 
@@ -103,7 +170,10 @@ void setup_station(void)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+	ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT40));
     ESP_ERROR_CHECK(esp_wifi_start());
+
+	ESP_ERROR_CHECK(esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY));
 
     esp_wifi_set_ps(WIFI_PS_NONE);
 
@@ -111,9 +181,7 @@ void setup_station(void)
 }
 
 void setup_softap(void)
-{
-    pthread_mutex_init(&csi_mutex, NULL);
-    
+{    
     s_wifi_event_group = xEventGroupCreate();
     
     ESP_ERROR_CHECK(nvs_flash_init());
@@ -148,9 +216,10 @@ void setup_softap(void)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+	ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT40));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    //    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW40));
+	ESP_ERROR_CHECK(esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY));
 
     ESP_LOGI(TAG, "softap setup finished. SSID:%s password:%s", SSID, PASS);
 }
@@ -218,21 +287,45 @@ void ezmesh_init(void)
     ESP_LOGI(TAG, "Mesh starts successfully, heap:%" PRId32, esp_get_free_heap_size());
 }
 
-void setup_csi(void) {
-    ESP_ERROR_CHECK(esp_wifi_set_csi(1));
+/* void setup_csi(void) { */
+/*     ESP_ERROR_CHECK(esp_wifi_set_csi(1)); */
 
-    wifi_csi_config_t configuration_csi;
-    configuration_csi.lltf_en = 1;
-    configuration_csi.htltf_en = 1;
-    configuration_csi.stbc_htltf2_en = 1;
-    configuration_csi.ltf_merge_en = 1;
-    configuration_csi.channel_filter_en = 0;
-    configuration_csi.manu_scale = 0;
+/*     wifi_csi_config_t configuration_csi; */
+/*     configuration_csi.lltf_en = 1; */
+/*     configuration_csi.htltf_en = 1; */
+/*     configuration_csi.stbc_htltf2_en = 1; */
+/*     configuration_csi.ltf_merge_en = 1; */
+/*     configuration_csi.channel_filter_en = 0; */
+/*     configuration_csi.manu_scale = 0; */
 
-    ESP_ERROR_CHECK(esp_wifi_set_csi_config(&configuration_csi));
-    ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&_wifi_csi_cb, NULL));
+/*     ESP_ERROR_CHECK(esp_wifi_set_csi_config(&configuration_csi)); */
+/*     ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&_wifi_csi_cb, NULL)); */
 
-    //_print_csi_csv_header();
+/*     //_print_csi_csv_header(); */
 
-    ESP_LOGI(TAG, "setup csi finished.");
+/*     ESP_LOGI(TAG, "setup csi finished."); */
+/* } */
+
+void setup_csi(char *csi_mac_addr)
+{
+    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
+
+    /**< default config */
+    wifi_csi_config_t csi_config = {
+        .lltf_en           = true,
+        .htltf_en          = true,
+        .stbc_htltf2_en    = true,
+        .ltf_merge_en      = true,
+        .channel_filter_en = true,
+        .manu_scale        = false,
+        .shift             = false,
+    };
+	
+    ESP_ERROR_CHECK(esp_wifi_set_csi_config(&csi_config));
+    ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(wifi_csi_rx_cb, NULL));
+    ESP_ERROR_CHECK(esp_wifi_set_csi(true));
+	
+	pthread_mutex_init(&csi_mutex, NULL);
+
+	CSI_MAC = csi_mac_addr;
 }
